@@ -7,6 +7,33 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 
 # utils
 
+def pp_instr(instr: list):
+    match instr:
+        case ["bucket", const]: return f'from(bucket: "{const}")'
+        case ["range", const]: return f'|> range(start: {const})'
+        case ["filter", bexpr, mode]: return f'|> filter(fn: (r) => {pp_bexpr(bexpr)}, onEmpty: "{mode}")'
+        case ["group", cols, mode]: return f'|> group(columns: {pp_cols(cols)}, mode: "{mode}")'
+        case ["sort", cols]: return f'|> sort(columns: {pp_cols(cols)})'
+        case ["limit", num]: return f'|> limit(n: {num})'
+        case ["map", aexpr]: return f'|> map(fn: (r) => ({{r with {pp_aexpr(aexpr)}}}))'
+
+def pp_bexpr(bexpr: list) -> str:
+    match bexpr:
+        case ["tag", const]: return f'r.{const}'
+        case [e1, "==", e2]: return f'{pp_bexpr(e1)} == {pp_bexpr(e2)}'
+        case [e1, "<", e2]: return f'{pp_bexpr(e1)} < {pp_bexpr(e2)}'
+        case [e1, ">", e2]: return f'{pp_bexpr(e1)} > {pp_bexpr(e2)}'
+        case [e1, "and", e2]: return f'{pp_bexpr(e1)} and {pp_bexpr(e2)}'
+        case ["if", c, t, e]: return 
+        case _: return f'"{bexpr}"'
+
+def pp_aexpr(aexpr: tuple) -> str:
+    raise Exception("Not implemented")
+
+def pp_cols(cols: list) -> str:
+    return '[' + f'"{", ".join(cols)}"' + ']'
+
+
 # Clases
 
 class InfluxService():
@@ -44,13 +71,15 @@ class InfluxQuery():
         self.org: str = org
 
         self.pipeline: list[str] = []
-        self.filters: list[str] = []
         self._reset()
     
     def _reset(self) -> None:
         """Reset the agregation pipeline"""
-        self.pipeline = [f'from(bucket: "{self.bucket}")\n']
+        self.pipeline = [("bucket", self.bucket)]
         self.filters = []
+
+    def _parse(self):
+        return "\n".join(pp_instr(instr) for instr in self.pipeline)
 
     def _query(self, query: str) -> TableList:
         """Make the influxdb query with a query string"""
@@ -63,27 +92,39 @@ class InfluxQuery():
     # Aggregation
     def aggregate(self) -> TableList:
         """Get a TableList by applying a agregation pipeline"""
-        query = "".join(self.pipeline) + "".join(self.filters)
-        results = self._query(query=query)
+        results = self._query(query=self._parse())
         self._reset()
         return results
     
     def range(self, range: str) -> 'InfluxQuery':
         """Filter measurements in a time range"""
-        self.pipeline += [f'|> range(start: {range})\n']
+        self.pipeline += [("range", range)]
+        return self
+    
+    def group(self, columns: list[str], mode: str="by"):
+        """"""
+        self.pipeline += [("group", columns, mode)]
+        return self
+
+    def sort(self, columns: list[str]):
+        """"""
+        self.pipeline += [("sort", columns)]
+        return self
+
+    def limit(self, limit: int) -> 'InfluxQuery':
+        """"""
+        self.pipeline += [("limit", limit)]
+        return self
+    
+    def filter(self, tag: str, value:str, mode: str="drop") -> 'InfluxQuery':
+        """Filter records by tag value pair"""
+        self.pipeline += [("filter", (("tag", tag), "==", value), mode)]
         return self
     
     def measurement(self, measurement: str) -> 'InfluxQuery':
-        """Filter measurements by type"""
-        self.filters += [f'|> filter(fn: (r) => r._measurement == "{measurement}")\n']
-        return self
-    
-    def tag(self, tag: str, value:str) -> 'InfluxQuery':
-        """Filter measurements by tag value pair"""
-        self.filters += [f'|> filter(fn:(r) => r.{tag} == "{value}")\n']
-        return self
+        """Filter records by measurements"""
+        return self.filter("_measurement", measurement)
     
     def field(self, field: str) -> 'InfluxQuery':
-        """Filter measurements by field"""
-        self.filters += [f'|> filter(fn:(r) => r._field == "{field}")\n']
-        return self
+        """Filter records by field"""
+        return self.filter("_field", field)

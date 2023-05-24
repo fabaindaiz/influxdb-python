@@ -26,10 +26,26 @@ if __name__=="__main__":
     # Query client
     query_client = influx_service.query_client(bucket=bucket_name)
     
-    query_client.range("-10h").measurement("measurement1")
-    query_client.tag("tagname1", "tagvalue1").field("field1")
-    tables = query_client.get()
+    # Range, must go first
+    query_client.range("-10d")
     
-    for table in tables:
-        for record in table.records:
-            print(record)
+    # Filters
+    query_client.filter("tagname1", "tagvalue1")
+    query_client.measurement("measurement1").field("field1")
+
+    # Show
+    #query_client.group(["_value"])
+    query_client.sort(["_value"])
+    query_client.limit(5)
+
+    # Print query
+    print(query_client._parse())
+    
+    if True:
+        # Query records
+        tables = query_client.get()
+
+        # Print records
+        for table in tables:
+            for record in table.records:
+                print(record)
