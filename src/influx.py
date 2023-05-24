@@ -63,7 +63,7 @@ class InfluxQuery():
     # Aggregation
     def aggregate(self) -> TableList:
         """Get a TableList by applying a agregation pipeline"""
-        query = "".join(self.pipeline)
+        query = "".join(self.pipeline) + "".join(self.filters)
         results = self._query(query=query)
         self._reset()
         return results
