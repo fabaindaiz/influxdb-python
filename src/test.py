@@ -12,28 +12,34 @@ if __name__=="__main__":
     # Write client
     write_client = influx_service.write_client(bucket=bucket_name)
 
-    '''
-    for value in range(5):
-        point = (
-            Point("measurement1")
-            .tag("tagname1", "tagvalue1")
-            .field("field1", value)
-        )
-        write_client.write_record(point)
-        time.sleep(1) # separate points by 1 second
-    '''
+    if False:
+        for value in range(5):
+            point = (
+                Point("measurement1")
+                .tag("tagname1", "tagvalue1")
+                .field("field1", value)
+            )
+            write_client.write_record(point)
+            time.sleep(1) # separate points by 1 second
 
     # Query client
     query_client = influx_service.query_client(bucket=bucket_name)
     
     # Range, must go first
-    query_client.range("-10d")
+    query_client.range("-30d")
     
-    # Filters
-    query_client.filter("tagname1", "tagvalue1")
+    # Basic filters
+    query_client.tag("tagname1", "tagvalue1")
     query_client.measurement("measurement1").field("field1")
 
-    # Show
+    # Advanced filters
+    query_client.filter((("tag", "tagname1"), "!=", "tagvalue2"))
+
+    # Operators
+    #query_client.unique("_value")
+    #query_client.count("_value")
+
+    # Show data
     #query_client.group(["_value"])
     query_client.sort(["_value"])
     query_client.limit(5)
@@ -42,10 +48,7 @@ if __name__=="__main__":
     print(query_client._parse())
     
     if True:
-        # Query records
         tables = query_client.get()
-
-        # Print records
         for table in tables:
             for record in table.records:
                 print(record)

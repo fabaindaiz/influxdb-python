@@ -14,17 +14,27 @@ def pp_instr(instr: list):
         case ["filter", bexpr, mode]: return f'|> filter(fn: (r) => {pp_bexpr(bexpr)}, onEmpty: "{mode}")'
         case ["group", cols, mode]: return f'|> group(columns: {pp_cols(cols)}, mode: "{mode}")'
         case ["sort", cols]: return f'|> sort(columns: {pp_cols(cols)})'
-        case ["limit", num]: return f'|> limit(n: {num})'
+        case ["unique", col]: return f'|> unique(column: "{(col)}")'
+        case ["count", col]: return f'|> count(column: "{(col)}")'
+        case ["sum", col]: return f'|> sum(column: "{(col)}")'
+        case ["window", const, fn]: return f'|> aggregateWindow(every: {const}, fn: {fn})'
         case ["map", aexpr]: return f'|> map(fn: (r) => ({{r with {pp_aexpr(aexpr)}}}))'
+        case ["limit", num]: return f'|> limit(n: {num})'
+        case ["top", num]: return f'|> top(n: {num})'
 
 def pp_bexpr(bexpr: list) -> str:
     match bexpr:
+        case ["flux", const]: return f'{const}'
         case ["tag", const]: return f'r.{const}'
         case [e1, "==", e2]: return f'{pp_bexpr(e1)} == {pp_bexpr(e2)}'
+        case [e1, "!=", e2]: return f'{pp_bexpr(e1)} != {pp_bexpr(e2)}'
         case [e1, "<", e2]: return f'{pp_bexpr(e1)} < {pp_bexpr(e2)}'
         case [e1, ">", e2]: return f'{pp_bexpr(e1)} > {pp_bexpr(e2)}'
+        case [e1, "<=", e2]: return f'{pp_bexpr(e1)} <= {pp_bexpr(e2)}'
+        case [e1, ">=", e2]: return f'{pp_bexpr(e1)} >= {pp_bexpr(e2)}'
         case [e1, "and", e2]: return f'{pp_bexpr(e1)} and {pp_bexpr(e2)}'
-        case ["if", c, t, e]: return 
+        case [e1, "or", e2]: return f'{pp_bexpr(e1)} or {pp_bexpr(e2)}'
+        case ["if", c, t, e]: return f'if {pp_bexpr(c)} then {pp_bexpr(t)} else {pp_bexpr(e)}'
         case _: return f'"{bexpr}"'
 
 def pp_aexpr(aexpr: tuple) -> str:
@@ -78,8 +88,12 @@ class InfluxQuery():
         self.pipeline = [("bucket", self.bucket)]
         self.filters = []
 
-    def _parse(self):
+    def _parse(self) -> str:
         return "\n".join(pp_instr(instr) for instr in self.pipeline)
+    
+    def _append(self, instr: tuple) -> 'InfluxQuery':
+        self.pipeline += [instr]
+        return self
 
     def _query(self, query: str) -> TableList:
         """Make the influxdb query with a query string"""
@@ -98,33 +112,56 @@ class InfluxQuery():
     
     def range(self, range: str) -> 'InfluxQuery':
         """Filter measurements in a time range"""
-        self.pipeline += [("range", range)]
-        return self
+        return self._append(("range", range))
     
-    def group(self, columns: list[str], mode: str="by"):
+    def filter(self, bexpr: tuple, mode: str="drop") -> 'InfluxQuery':
         """"""
-        self.pipeline += [("group", columns, mode)]
-        return self
-
-    def sort(self, columns: list[str]):
-        """"""
-        self.pipeline += [("sort", columns)]
-        return self
-
-    def limit(self, limit: int) -> 'InfluxQuery':
-        """"""
-        self.pipeline += [("limit", limit)]
-        return self
+        return self._append(("filter", bexpr, mode))
     
-    def filter(self, tag: str, value:str, mode: str="drop") -> 'InfluxQuery':
+    def group(self, columns: list[str], mode: str="by") -> 'InfluxQuery':
+        """"""
+        return self._append(("group", columns, mode))
+
+    def sort(self, columns: list[str]) -> 'InfluxQuery':
+        """"""
+        return self._append(("sort", columns))
+    
+    def unique(self, column: str) -> 'InfluxQuery':
+        """"""
+        return self._append(("unique", column))
+    
+    def count(self, column: str) -> 'InfluxQuery':
+        """"""
+        return self._append(("count", column))
+    
+    def sum(self, column: str) -> 'InfluxQuery':
+        """"""
+        return self._append(("sum", column))
+    
+    def window(self, every: str, fn: str="max") -> 'InfluxQuery':
+        """"""
+        return self._append(("window", every, fn))
+    
+    def map(self, aexpr: tuple) -> 'InfluxQuery':
+        """"""
+        return self._append(("map", aexpr))
+
+    def limit(self, num: int) -> 'InfluxQuery':
+        """"""
+        return self._append(("limit", num))
+    
+    def top(self, num: int) -> 'InfluxQuery':
+        """"""
+        return self._append(("top", num))
+    
+    def tag(self, tag: str, value: str, mode: str="drop") -> 'InfluxQuery':
         """Filter records by tag value pair"""
-        self.pipeline += [("filter", (("tag", tag), "==", value), mode)]
-        return self
+        return self.filter((("tag", tag), "==", value), mode=mode)
     
     def measurement(self, measurement: str) -> 'InfluxQuery':
         """Filter records by measurements"""
-        return self.filter("_measurement", measurement)
+        return self.tag("_measurement", measurement)
     
     def field(self, field: str) -> 'InfluxQuery':
         """Filter records by field"""
-        return self.filter("_field", field)
+        return self.tag("_field", field)
