@@ -29,15 +29,17 @@ if __name__=="__main__":
     # Range, must go first
     query_client.range("-30d")
     
-    # Filters
+    # Basic filters
     query_client.tag("tagname1", "tagvalue1")
     query_client.measurement("measurement1").field("field1")
+
+    # Advanced filters
     query_client.filter((("tag", "tagname1"), "!=", "tagvalue2"))
 
     # Operators
     #query_client.unique("_value")
-    #query_client.count("_value")
-    #query_client.sum("_value")
+    #query_client.count()
+    #query_client.sum()
 
     # Order data
     #query_client.group(["_value"])

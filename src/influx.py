@@ -16,20 +16,21 @@ def pp_instr(instr: list) -> str:
         case ["group", cols, mode]: return f'|> group(columns: {pp_cols(cols)}, mode: "{mode}")'
         case ["sort", cols]: return f'|> sort(columns: {pp_cols(cols)})'
         case ["keep", cols]: return f'|> keep(columns: {pp_cols(cols)})'
+        case ["fill", col, value]: return f'|> fill(column: "{(col)}", value: {pp_bexpr(value)})'
         case ["unique", col]: return f'|> unique(column: "{(col)}")'
         case ["count", col]: return f'|> count(column: "{(col)}")'
         case ["sum", col]: return f'|> sum(column: "{(col)}")'
+        case ["first", col]: return f'|> first(column: "{(col)}")'
+        case ["last", col]: return f'|> last(column: "{(col)}")'
+        case ["min", col]: return f'|> min(column: "{(col)}")'
+        case ["max", col]: return f'|> max(column: "{(col)}")'
+        case ["mode", col]: return f'|> mode(column: "{(col)}")'
+        case ["mean", col]: return f'|> mean(column: "{(col)}")'
+        case ["median", col]: return f'|> median(column: "{(col)}")'
         case ["window", const, fn]: return f'|> aggregateWindow(every: {const}, fn: {fn})'
         case ["map", aexpr]: return f'|> map(fn: (r) => ({{r with {pp_aexpr(aexpr)}}}))'
         case ["limit", num]: return f'|> limit(n: {num})'
         case ["top", num]: return f'|> top(n: {num})'
-        case ["first"]: return f'|> first()'
-        case ["last"]: return f'|> last()'
-        case ["min"]: return f'|> min()'
-        case ["max"]: return f'|> max()'
-        case ["mode"]: return f'|> mode()'
-        case ["mean"]: return f'|> mean()'
-        case ["median"]: return f'|> median()'
 
 def pp_bexpr(bexpr: list) -> str:
     """Parse boolean expresions to string"""
@@ -49,7 +50,7 @@ def pp_bexpr(bexpr: list) -> str:
         # case 4
         case ["if", c, t, e]: return f'if {pp_bexpr(c)} then {pp_bexpr(t)} else {pp_bexpr(e)}'
         # case _
-        case _: return f'"{bexpr}"'
+        case _: return bexpr if isinstance(bexpr, int) else f'"{bexpr}"'
 
 def pp_aexpr(aexpr: tuple) -> str:
     """Parse arithmetic expresions to string"""
@@ -128,6 +129,7 @@ class InfluxQuery():
         self._reset()
         return results
     
+    # Filters
     def range(self, range: str) -> 'InfluxQuery':
         """Filter records in a time range"""
         return self._append(("range", range))
@@ -136,6 +138,7 @@ class InfluxQuery():
         """Filter records using a boolean expresion"""
         return self._append(("filter", bexpr, mode))
     
+    # Order data
     def group(self, columns: list[str], mode: str="by") -> 'InfluxQuery':
         """Group records based on values in specified columns"""
         return self._append(("group", columns, mode))
@@ -148,18 +151,52 @@ class InfluxQuery():
         """Returns records only with the specified columns"""
         return self._append(("keep", columns))
     
-    def unique(self, column: str) -> 'InfluxQuery':
+    # Operators
+    def fill(self, column: str="_value", value: str=0) -> 'InfluxQuery':
+        """Replaces all null values with a non-null value"""
+        return self._append(("fill", column, value))
+
+    def unique(self, column: str="_value") -> 'InfluxQuery':
         """Find unique values from a specified column"""
         return self._append(("unique", column))
     
-    def count(self, column: str) -> 'InfluxQuery':
+    def count(self, column: str="_value") -> 'InfluxQuery':
         """Count values from a specified column"""
         return self._append(("count", column))
     
-    def sum(self, column: str) -> 'InfluxQuery':
+    def sum(self, column: str="_value") -> 'InfluxQuery':
         """Sum values from a specified column"""
         return self._append(("sum", column))
     
+    def first(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the first record"""
+        return self._append(("first", column))
+
+    def last(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the last records"""
+        return self._append(("last", column))
+    
+    def min(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the min record"""
+        return self._append(("min", column))
+    
+    def max(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the max record"""
+        return self._append(("max", column))
+    
+    def mode(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the mode records"""
+        return self._append(("mode", column))
+    
+    def mean(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the max record"""
+        return self._append(("mean", column))
+
+    def median(self, column: str="_value") -> 'InfluxQuery':
+        """Returns the min record"""
+        return self._append(("median", column))
+    
+    # Functions
     def window(self, every: str, fn: str="max") -> 'InfluxQuery':
         """Downsamples records by grouping data into fixed windows"""
         return self._append(("window", every, fn))
@@ -168,6 +205,7 @@ class InfluxQuery():
         """Iterates over and applies a function to records"""
         return self._append(("map", aexpr))
 
+    # Show data
     def limit(self, num: int) -> 'InfluxQuery':
         """Returns the first n records"""
         return self._append(("limit", num))
@@ -180,34 +218,7 @@ class InfluxQuery():
         """Returns the top n records"""
         return self._append(("top", num))
     
-    def first(self) -> 'InfluxQuery':
-        """Returns the first record"""
-        return self._append(("first",))
-
-    def last(self) -> 'InfluxQuery':
-        """Returns the last records"""
-        return self._append(("last",))
-    
-    def min(self) -> 'InfluxQuery':
-        """Returns the min record"""
-        return self._append(("min",))
-    
-    def max(self) -> 'InfluxQuery':
-        """Returns the max record"""
-        return self._append(("max",))
-    
-    def mode(self) -> 'InfluxQuery':
-        """Returns the mode records"""
-        return self._append(("mode",))
-    
-    def mean(self) -> 'InfluxQuery':
-        """Returns the max record"""
-        return self._append(("mean",))
-
-    def median(self) -> 'InfluxQuery':
-        """Returns the min record"""
-        return self._append(("median",))
-    
+    # Basic filters
     def tag(self, tag: str, value: str, mode: str="drop") -> 'InfluxQuery':
         """Filter records by tag value pair"""
         return self.filter((("tag", tag), "==", value), mode=mode)
