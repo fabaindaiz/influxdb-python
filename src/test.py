@@ -22,27 +22,30 @@ if __name__=="__main__":
             write_client.write_record(point)
             time.sleep(1) # separate points by 1 second
 
+
     # Query client
     query_client = influx_service.query_client(bucket=bucket_name)
     
     # Range, must go first
     query_client.range("-30d")
     
-    # Basic filters
+    # Filters
     query_client.tag("tagname1", "tagvalue1")
     query_client.measurement("measurement1").field("field1")
-
-    # Advanced filters
     query_client.filter((("tag", "tagname1"), "!=", "tagvalue2"))
 
     # Operators
     #query_client.unique("_value")
     #query_client.count("_value")
+    #query_client.sum("_value")
 
-    # Show data
+    # Order data
     #query_client.group(["_value"])
     query_client.sort(["_value"])
+
+    # Show data
     query_client.limit(5)
+    #query_client.top(5)
 
     # Print query
     print(query_client._parse())
